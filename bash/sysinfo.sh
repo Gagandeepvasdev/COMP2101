@@ -32,14 +32,18 @@ get_cpu_info() {
         echo "CPU Information: Data not available."
     else
         echo "CPU Information:"
-        echo "   CPU Manufacturer and Model: $(echo "$cpu_info" | grep "product:" | sed 's/^[ \t]*//')"
-        echo "   CPU Architecture: $(echo "$cpu_info" | grep "width:" | sed 's/^[ \t]*//')"
-        echo "   CPU Core Count: $(echo "$cpu_info" | grep "cores" | awk '{print $2}')"
-        echo "   CPU Maximum Speed: $(echo "$cpu_info" | grep "capacity:" | sed 's/^[ \t]*//')"
-        echo "   Sizes of Caches:"
-        echo "      L1: $(echo "$cpu_info" | grep "size: 32" | sed 's/^[ \t]*//')"
-        echo "      L2: $(echo "$cpu_info" | grep "size: 256" | sed 's/^[ \t]*//')"
-        echo "      L3: $(echo "$cpu_info" | grep "size: 4096" | sed 's/^[ \t]*//')"
+        num_cpus=$(grep -c "^processor" /proc/cpuinfo)
+        for (( i = 0; i < num_cpus; i++ )); do
+            echo "   CPU $((i+1)):"
+            echo "      CPU Manufacturer and Model: $(echo "$cpu_info" | awk -v i="$i" '/product:/{c++}c==(i+1){print $2 " " $3}')"
+            echo "      CPU Architecture: $(echo "$cpu_info" | awk -v i="$i" '/width:/{c++}c==(i+1){print $2}')"
+            echo "      CPU Core Count: $(echo "$cpu_info" | awk -v i="$i" '/cores:/{c++}c==(i+1){print $2}')"
+            echo "      CPU Maximum Speed: $(echo "$cpu_info" | awk -v i="$i" '/capacity:/{c++}c==(i+1){print $2}')"
+            echo "      Sizes of Caches:"
+            echo "         L1: $(echo "$cpu_info" | awk -v i="$i" '/size: 32K/{c++}c==(i+1){print $2}')"
+            echo "         L2: $(echo "$cpu_info" | awk -v i="$i" '/size: 256K/{c++}c==(i+1){print $2}')"
+            echo "         L3: $(echo "$cpu_info" | awk -v i="$i" '/size: 4096K/{c++}c==(i+1){print $2}')"
+        done
     fi
 }
 
@@ -55,6 +59,39 @@ get_os_info() {
     fi
 }
 
+# Function to get RAM information
+get_ram_info() {
+    ram_info=$(lshw -C memory 2>/dev/null)
+    if [ $? -ne 0 ]; then
+        echo "RAM Information: Data not available."
+    else
+        echo "RAM Information:"
+        total_ram=$(echo "$ram_info" | grep "size:" | awk '{print $2}' | awk '{sum+=$1} END{print sum}')
+        echo "   Total Installed RAM: $total_ram"
+        echo "   DIMM Details:"
+        echo "   +-------------+---------------------------------+--------------+-----------------+-------------------------+"
+        echo "   | Manufacturer| Model/Product Name              | Size         | Speed           | Physical Location       |"
+        echo "   +-------------+---------------------------------+--------------+-----------------+-------------------------+"
+        echo "$ram_info" | awk '/memory/{gsub("size:", "", $2); gsub("clock:", "", $3); gsub("bank:", "", $4); print "   | " $2 "      | " $3 "       | " $1 " | " $4 " | " $5 " |"}'
+        echo "   +-------------+---------------------------------+--------------+-----------------+-------------------------+"
+    fi
+}
+
+# Function to get disk storage information
+get_disk_info() {
+    disk_info=$(lsblk -o NAME,MODEL,SIZE,MOUNTPOINT,FSTYPE 2>/dev/null)
+    if [ $? -ne 0 ]; then
+        echo "Disk Storage Information: Data not available."
+    else
+        echo "Disk Storage Information:"
+        echo "   +------+-----------------------+-----------+------------------------+------------------------+"
+        echo "   | Drive| Model                 | Size      | Partition Number       | Filesystem Size        |"
+        echo "   +------+-----------------------+-----------+------------------------+------------------------+"
+        echo "$disk_info" | awk '/disk/{print "   | " $1 " | " $2 " | " $3 " | " $4 " | " $5 " |"}'
+        echo "   +------+-----------------------+-----------+------------------------+------------------------+"
+    fi
+}
+
 # Check if the user has root privilege
 check_root_privilege
 
@@ -65,3 +102,7 @@ echo "======================================="
 get_cpu_info
 echo "======================================="
 get_os_info
+echo "======================================="
+get_ram_info
+echo "======================================="
+get_disk_info
