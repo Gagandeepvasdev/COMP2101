@@ -8,7 +8,7 @@ get_fqdn() {
 
 # Function to display host information
 get_host_info() {
-    echo "Host Information:"
+    echo "Host Information :"
     hostnamectl
 }
 
